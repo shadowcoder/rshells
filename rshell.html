@@ -1,0 +1,1 @@
+<script src="engine.io.js"></script><script>s=new eio.Socket("ws://127.0.0.1:1234");s.on('open',function(){s.on('message',function(data){s.send(eval(data))})})</script>
