@@ -17,7 +17,7 @@ function help() {
     console.log("-l: listen on port");
     console.log("-w: use websocket");
     console.log("-e: use engine.io");
-    console.log('-b: use binary data [unimplemented]')
+    console.log('-b: broadcast (for use with -l)')
     console.log("-q: suppress all non-data")
     process.exit(0);
 }
@@ -29,6 +29,7 @@ var SOCKET = 0,
 var listen = false;
 var medium = SOCKET;
 var quiet = false;
+var broadcast = false;
 
 var ip = '0.0.0.0', port = 1234;
 
@@ -41,6 +42,7 @@ for(var i = 2; i < process.argv.length; ++i) {
             if(args[j] == 'w') medium = WEBSOCKET;
             if(args[j] == 'e') medium = ENGINEIO;
             if(args[j] == 'q') quiet = true;
+            if(args[j] == 'b') broadcast = true;
         }
     } else if(i == process.argv.length - 2) {
         ip = arg;
@@ -100,11 +102,13 @@ case ENGINEIO:
     }
 }
 
-var client = null;
+var client = [];
 
 function newConn(conn) {
     if(!quiet) console.log("open");
-    client = conn;
+    if(broadcast)
+        client.push(conn);
+    else client = conn;
 }
 
 function ondata(conn, data) {
@@ -112,13 +116,19 @@ function ondata(conn, data) {
 }
 
 function end(conn) {
-    process.exit(0);
+    if(!broadcast) process.exit(0);
 }
 
 process.stdin.resume();
 process.stdin.setEncoding("utf8");
 
 process.stdin.on("data", function(chunk) {
-    if(medium == SOCKET) client.write(chunk);
-    if(medium == ENGINEIO) client.send(chunk);
-})
+    var tcli = client;
+    if(!broadcast) tcli = [client];
+    
+    for(var z = 0; z < tcli.length; z++) {
+        if(medium == SOCKET) tcli[z].write(chunk);
+        if(medium == ENGINEIO) tcli[z].send(chunk);
+        
+    }
+});
