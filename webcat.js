@@ -9,14 +9,14 @@ if(process.argv.length == 2) usage();
 if(process.argv[2] == '--help') help();
 
 function usage(e) {
-    console.log("node webcat.js [-lwsbq] [ip] port");
+    console.log("node webcat.js [-lwebq] [ip] port");
     if(!e) process.exit(0);
 }
 function help() {
     usage(1);
     console.log("-l: listen on port");
     console.log("-w: use websocket");
-    console.log("-s: use socket.io");
+    console.log("-e: use engine.io");
     console.log('-b: use binary data [unimplemented]')
     console.log("-q: suppress all non-data")
     process.exit(0);
@@ -24,7 +24,7 @@ function help() {
 
 var SOCKET = 0,
     WEBSOCKET = 1,
-    SOCKETIO = 2;
+    ENGINEIO = 2;
 
 var listen = false;
 var medium = SOCKET;
@@ -39,7 +39,7 @@ for(var i = 2; i < process.argv.length; ++i) {
         for(var j = 0; j < args.length; j++) {
             if(args[j] == 'l') listen = true;
             if(args[j] == 'w') medium = WEBSOCKET;
-            if(args[j] == 's') medium = SOCKETIO;
+            if(args[j] == 'e') medium = ENGINEIO;
             if(args[j] == 'q') quiet = true;
         }
     } else if(i == process.argv.length - 2) {
@@ -74,6 +74,30 @@ case SOCKET:
         })
     }
     break;
+case ENGINEIO:
+    if(listen) {
+        require('engine.io').listen(port).on('connection', function(socket) {
+            newConn(socket);
+            socket.on('message', function (d) { 
+                ondata(socket, d);
+            });
+            socket.on('close', function () { 
+                end(socket);
+            });
+            
+        })
+    } else {
+        var enginecli = require('engine.io-client')(ip ? ip+":"+port : port);
+        enginecli.onopen = function() {
+            newConn(enginecli);
+            enginecli.onmessage = function(data) {
+                ondata(enginecli, data);
+            }
+            enginecli.onclose = function() {
+                end(enginecli);
+            }
+        }
+    }
 }
 
 var client = null;
@@ -96,4 +120,5 @@ process.stdin.setEncoding("utf8");
 
 process.stdin.on("data", function(chunk) {
     if(medium == SOCKET) client.write(chunk);
+    if(medium == ENGINEIO) client.send(chunk);
 })
